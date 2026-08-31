@@ -226,7 +226,10 @@ class PortfolioDecision(BaseModel):
         description=(
             "When an options workflow is active, summarize whether the "
             "approximately 45-DTE ATM/near-ATM cash-secured put seller strategy "
-            "with 21-DTE profit-taking should be primary. Mention an optional "
+            "with 21-DTE profit-taking should be primary. Also assess whether a "
+            "defined-risk OTM put credit spread is suitable for stable premium "
+            "without shares, using Delta 0.10-0.20 or a lower Delta when needed. "
+            "Mention an optional "
             "approximately 365-DTE deep-ITM LEAPS Call buyer strategy only when "
             "the knowledge-graph conditions and current data are satisfied: "
             "genuine long-term thesis, >=1 year expiry, Delta near/above 0.85, "

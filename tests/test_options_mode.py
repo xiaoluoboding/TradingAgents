@@ -57,6 +57,8 @@ def test_options_trader_prompt_contains_csp_and_leaps_lenses():
             assert "cash-secured put (CSP)" in prompt
             assert "45/21" in prompt
             assert "LEAPS Call" in prompt
+            assert "OTM NO-SHARES INCOME STRATEGY" in prompt
+            assert "0.10-0.20" in prompt
             return FakeResponse()
 
     node = create_options_trader(FakeLLM())

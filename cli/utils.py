@@ -18,6 +18,7 @@ ANALYST_ORDER = [
     ("Sentiment Analyst", AnalystType.SOCIAL),
     ("News Analyst", AnalystType.NEWS),
     ("Fundamentals Analyst", AnalystType.FUNDAMENTALS),
+    ("Options Analyst (Greeks & IV)", AnalystType.OPTIONS),
 ]
 
 CRYPTO_SUFFIXES = ("-USD", "-USDT", "-USDC", "-BTC", "-ETH")
@@ -162,6 +163,16 @@ def select_analysts(asset_type: AssetType = AssetType.STOCK) -> list[AnalystType
         exit(1)
 
     return choices
+
+
+def select_options_trader() -> bool:
+    """Ask separately whether the Trading Team should construct an option strategy."""
+    choice = questionary.confirm(
+        "Enable Options Trader in the Trading Team? [Y/n]",
+        default=True,
+        style=questionary.Style([("text", "fg:green"), ("highlighted", "noinherit")]),
+    ).ask()
+    return bool(choice)
 
 
 def select_research_depth() -> int:

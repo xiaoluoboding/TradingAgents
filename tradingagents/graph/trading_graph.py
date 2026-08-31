@@ -19,6 +19,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_global_news,
     get_income_statement,
     get_indicators,
+    get_option_chain,
     get_insider_transactions,
     get_macro_indicators,
     get_news,
@@ -83,6 +84,10 @@ class TradingAgentsGraph:
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
+        self.options_trader_enabled = bool(
+            self.config.get("options_trader_enabled", False)
+            or "options" in selected_analysts
+        )
 
         # Update the interface's config
         set_config(self.config)
@@ -146,7 +151,10 @@ class TradingAgentsGraph:
         self.selected_analysts = tuple(selected_analysts)
 
         # Set up the graph: keep the workflow for recompilation with a checkpointer.
-        self.workflow = self.graph_setup.setup_graph(selected_analysts)
+        self.workflow = self.graph_setup.setup_graph(
+            selected_analysts,
+            options_trader_enabled=self.options_trader_enabled,
+        )
         self.graph = self.workflow.compile()
         self._checkpointer_ctx = None
 
@@ -225,6 +233,7 @@ class TradingAgentsGraph:
                     get_income_statement,
                 ]
             ),
+            "options": ToolNode([get_option_chain]),
         }
 
     def _resolve_benchmark(self, ticker: str) -> str:
@@ -357,9 +366,10 @@ class TradingAgentsGraph:
             f"debate={self.config['max_debate_rounds']}",
             f"risk={self.config['max_risk_discuss_rounds']}",
             f"asset={asset_type}",
+            f"options_trader={self.options_trader_enabled}",
         ])
 
-    def propagate(self, company_name, trade_date, asset_type: str = "stock"):
+    def propagate(self, company_name, trade_date, asset_type: str = "stock", options_knowledge_context: str | None = None):
         """Run the trading agents graph for a company on a specific date.
 
         ``asset_type`` selects between the stock pipeline (default) and the
@@ -394,7 +404,10 @@ class TradingAgentsGraph:
                 logger.info("Starting fresh for %s on %s", company_name, trade_date)
 
         try:
-            return self._run_graph(company_name, trade_date, asset_type=asset_type)
+            return self._run_graph(
+                company_name, trade_date, asset_type=asset_type,
+                options_knowledge_context=options_knowledge_context,
+            )
         finally:
             if self._checkpointer_ctx is not None:
                 self._checkpointer_ctx.__exit__(None, None, None)
@@ -416,7 +429,10 @@ class TradingAgentsGraph:
             )
         return write_report_tree(final_state, ticker, save_path)
 
-    def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
+    def _run_graph(
+        self, company_name, trade_date, asset_type: str = "stock",
+        options_knowledge_context: str | None = None,
+    ):
         """Execute the graph and write the resulting state to disk and memory log."""
         # Initialize state — inject memory log context for PM and the
         # deterministically resolved instrument identity for all agents.
@@ -428,6 +444,10 @@ class TradingAgentsGraph:
             asset_type=asset_type,
             past_context=past_context,
             instrument_context=instrument_context,
+            options_knowledge_context=(
+                self.config.get("options_knowledge_context", "")
+                if options_knowledge_context is None else options_knowledge_context
+            ),
         )
         args = self.propagator.get_graph_args()
 
@@ -490,6 +510,8 @@ class TradingAgentsGraph:
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
+            "options_report": final_state.get("options_report", ""),
+            "options_trader_plan": final_state.get("options_trader_plan", ""),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

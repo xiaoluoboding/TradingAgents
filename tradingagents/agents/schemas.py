@@ -221,6 +221,19 @@ class PortfolioDecision(BaseModel):
         default=None,
         description="Optional recommended holding period, e.g. '3-6 months'.",
     )
+    options_insights: str | None = Field(
+        default=None,
+        description=(
+            "When an options workflow is active, summarize whether the "
+            "approximately 45-DTE ATM/near-ATM cash-secured put seller strategy "
+            "with 21-DTE profit-taking should be primary. Mention an optional "
+            "approximately 365-DTE deep-ITM LEAPS Call buyer strategy only when "
+            "the knowledge-graph conditions and current data are satisfied: "
+            "genuine long-term thesis, >=1 year expiry, Delta near/above 0.85, "
+            "manageable Theta/cost, and adequate liquidity. Otherwise omit it. "
+            "Cite the relevant strategy evidence and key risk data."
+        ),
+    )
 
     @field_validator("price_target", mode="before")
     @classmethod
@@ -247,6 +260,8 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
         parts.extend(["", f"**Price Target**: {decision.price_target}"])
     if decision.time_horizon:
         parts.extend(["", f"**Time Horizon**: {decision.time_horizon}"])
+    if decision.options_insights:
+        parts.extend(["", f"**Options Insights**: {decision.options_insights}"])
     return "\n".join(parts)
 
 

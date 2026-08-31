@@ -15,6 +15,8 @@ from tradingagents.agents import (
     create_msg_delete,
     create_neutral_debator,
     create_news_analyst,
+    create_options_analyst,
+    create_options_trader,
     create_portfolio_manager,
     create_research_manager,
     create_sentiment_analyst,
@@ -59,7 +61,8 @@ class GraphSetup:
         self.conditional_logic = conditional_logic
 
     def setup_graph(
-        self, selected_analysts=("market", "social", "news", "fundamentals")
+        self, selected_analysts=("market", "social", "news", "fundamentals"),
+        options_trader_enabled: bool = False,
     ):
         """Set up and compile the agent workflow graph.
 
@@ -77,6 +80,7 @@ class GraphSetup:
             "social": lambda: create_sentiment_analyst(self.quick_thinking_llm),
             "news": lambda: create_news_analyst(self.quick_thinking_llm),
             "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
+            "options": lambda: create_options_analyst(self.quick_thinking_llm),
         }
 
         # Create researcher and manager nodes
@@ -84,6 +88,7 @@ class GraphSetup:
         bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
         research_manager_node = create_research_manager(self.deep_thinking_llm)
         trader_node = create_trader(self.quick_thinking_llm)
+        options_trader_node = create_options_trader(self.quick_thinking_llm)
 
         # Create risk analysis nodes
         aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
@@ -105,6 +110,8 @@ class GraphSetup:
         workflow.add_node("Bear Researcher", bear_researcher_node)
         workflow.add_node("Research Manager", research_manager_node)
         workflow.add_node("Trader", trader_node)
+        if options_trader_enabled:
+            workflow.add_node("Options Trader", options_trader_node)
         workflow.add_node("Aggressive Analyst", aggressive_analyst)
         workflow.add_node("Neutral Analyst", neutral_analyst)
         workflow.add_node("Conservative Analyst", conservative_analyst)
@@ -141,7 +148,11 @@ class GraphSetup:
                 self.conditional_logic.should_continue_debate,
                 DEBATE_PATH_MAP,
             )
-        workflow.add_edge("Research Manager", "Trader")
+        if options_trader_enabled:
+            workflow.add_edge("Research Manager", "Options Trader")
+            workflow.add_edge("Options Trader", "Trader")
+        else:
+            workflow.add_edge("Research Manager", "Trader")
         workflow.add_edge("Trader", "Aggressive Analyst")
         # All three risk edges share the complete RISK_ANALYSIS_PATH_MAP (#1088).
         for risk_node in ("Aggressive Analyst", "Conservative Analyst", "Neutral Analyst"):

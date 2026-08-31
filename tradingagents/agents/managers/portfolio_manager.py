@@ -32,6 +32,8 @@ def create_portfolio_manager(llm):
         risk_debate_state = state["risk_debate_state"]
         research_plan = state["investment_plan"]
         trader_plan = state["trader_investment_plan"]
+        options_report = state.get("options_report", "")
+        options_trader_plan = state.get("options_trader_plan", "")
 
         past_context = state.get("past_context", "")
         lessons_line = (
@@ -56,13 +58,15 @@ def create_portfolio_manager(llm):
 **Context:**
 - Research Manager's investment plan: **{research_plan}**
 - Trader's transaction proposal: **{trader_plan}**
+- Options Analyst report: **{options_report or 'Not available'}**
+- Options Trader plan: **{options_trader_plan or 'Not available'}**
 {lessons_line}
 **Risk Analysts Debate History:**
 {history}
 
 ---
 
-Be decisive and ground every conclusion in specific evidence from the analysts.
+If options data is available, fill the Options Insights field with a concise conclusion on the cash-secured-put seller strategy. State whether the approximately 45-DTE ATM/near-ATM CSP with 21-DTE profit-taking should be the primary strategy. Mention LEAPS Call only if the knowledge-graph conditions and current data support it: genuine long-term thesis, >=1 year to expiration, preferably deep ITM with Delta near/above 0.85, manageable Theta/cost, and adequate liquidity. LEAPS is optional and must not be framed as a required replacement for CSP. Emphasize seller-favorable conditions for CSP and do not merely repeat the stock rating. Be decisive and ground every conclusion in specific evidence from the analysts.
 
 {NO_EXTERNAL_TOOLS}{get_language_instruction()}"""
 

@@ -20,6 +20,7 @@ def create_research_manager(llm):
     def research_manager_node(state) -> dict:
         instrument_context = get_instrument_context_from_state(state)
         history = state["investment_debate_state"].get("history", "")
+        options_report = state.get("options_report", "")
 
         investment_debate_state = state["investment_debate_state"]
 
@@ -42,6 +43,9 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 
 **Debate History:**
 {history}
+
+**Options Analyst report (when selected):**
+{options_report}
 
 {NO_EXTERNAL_TOOLS}""" + get_language_instruction()
 

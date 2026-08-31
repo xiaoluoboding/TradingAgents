@@ -25,6 +25,12 @@ def create_trader(llm):
         company_name = state["company_of_interest"]
         instrument_context = get_instrument_context_from_state(state)
         investment_plan = state["investment_plan"]
+        options_report = state.get("options_report", "")
+        options_trader_plan = state.get("options_trader_plan", "")
+        options_instruction = (
+            " This is an options workflow. Treat the Options Trader report as primary for contract selection, Greeks, IV, liquidity, expiration, and defined-risk construction; do not reduce an option recommendation to the underlying stock direction."
+            if options_report else ""
+        )
 
         messages = [
             {
@@ -34,6 +40,7 @@ def create_trader(llm):
                     "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
                     "Anchor your reasoning in the analysts' reports and the research plan. "
                     + NO_EXTERNAL_TOOLS
+                    + options_instruction
                     + get_language_instruction()
                 ),
             },
@@ -46,6 +53,8 @@ def create_trader(llm):
                     f"social media sentiment. Use this plan as a foundation for evaluating your next "
                     f"trading decision.\n\nProposed Investment Plan: {investment_plan}\n\n"
                     f"Leverage these insights to make an informed and strategic decision."
+                    f"\n\nOptions Trader Report (if present): {options_report}"
+                    f"\n\nOptions strategy recommendation (if present): {options_trader_plan}"
                 ),
             },
         ]

@@ -22,6 +22,7 @@ class Propagator:
         asset_type: str = "stock",
         past_context: str = "",
         instrument_context: str = "",
+        options_knowledge_context: str = "",
     ) -> dict[str, Any]:
         """Create the initial state for the agent graph.
 
@@ -38,6 +39,7 @@ class Propagator:
             "instrument_context": instrument_context,
             "trade_date": str(trade_date),
             "past_context": past_context,
+            "options_knowledge_context": options_knowledge_context,
             "investment_debate_state": InvestDebateState(
                 {
                     "bull_history": "",
@@ -66,6 +68,8 @@ class Propagator:
             "fundamentals_report": "",
             "sentiment_report": "",
             "news_report": "",
+            "options_report": "",
+            "options_trader_plan": "",
         }
 
     def get_graph_args(self, callbacks: list | None = None) -> dict[str, Any]:

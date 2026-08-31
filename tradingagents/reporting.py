@@ -35,6 +35,10 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
         analysts_dir.mkdir(exist_ok=True)
         (analysts_dir / "fundamentals.md").write_text(final_state["fundamentals_report"], encoding="utf-8")
         analyst_parts.append(("Fundamentals Analyst", final_state["fundamentals_report"]))
+    if final_state.get("options_report"):
+        analysts_dir.mkdir(exist_ok=True)
+        (analysts_dir / "options.md").write_text(final_state["options_report"], encoding="utf-8")
+        analyst_parts.append(("Options Analyst", final_state["options_report"]))
     if analyst_parts:
         content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
         sections.append(f"## I. Analyst Team Reports\n\n{content}")
@@ -61,11 +65,17 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
             sections.append(f"## II. Research Team Decision\n\n{content}")
 
     # 3. Trading
-    if final_state.get("trader_investment_plan"):
+    if final_state.get("trader_investment_plan") or final_state.get("options_trader_plan"):
         trading_dir = save_path / "3_trading"
         trading_dir.mkdir(exist_ok=True)
-        (trading_dir / "trader.md").write_text(final_state["trader_investment_plan"], encoding="utf-8")
-        sections.append(f"## III. Trading Team Plan\n\n### Trader\n{final_state['trader_investment_plan']}")
+        trading_parts = []
+        if final_state.get("options_trader_plan"):
+            (trading_dir / "options_trader.md").write_text(final_state["options_trader_plan"], encoding="utf-8")
+            trading_parts.append(f"### Options Trader\n{final_state['options_trader_plan']}")
+        if final_state.get("trader_investment_plan"):
+            (trading_dir / "stock_trader.md").write_text(final_state["trader_investment_plan"], encoding="utf-8")
+            trading_parts.append(f"### Stock Trader\n{final_state['trader_investment_plan']}")
+        sections.append("## III. Trading Team Plan\n\n" + "\n\n".join(trading_parts))
 
     # 4. Risk Management
     if final_state.get("risk_debate_state"):

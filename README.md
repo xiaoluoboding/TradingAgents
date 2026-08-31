@@ -195,6 +195,34 @@ An interface will appear showing results as they load, letting you track the age
 
 ## TradingAgents Package
 
+### Options Trader mode
+
+Enable `Options Trader` in the Trading Team prompt. In the CLI this also
+enables the upstream `Options Analyst` automatically. In the Python API, set
+`options_trader_enabled=True` and include `"options"` in `selected_analysts`.
+The mode retrieves
+the current Yahoo option chain and grounds its report in contract symbol,
+expiration, bid/ask, volume, open interest, implied volatility, Delta, Gamma,
+Theta, Vega, and Rho when Yahoo provides those fields. It explicitly labels the
+retrieval timestamp because Yahoo does not provide a historical chain for a
+past analysis date. The Options Trader evaluates cash-secured puts as the
+primary seller strategy using the approximately 45/21 framework (about 45 DTE
+entry and profit-taking/buyback around 21 DTE), then selects the best supported
+non-CSP strategy when one qualifies. LEAPS Calls are only an optional buyer
+strategy: they appear in the recommendation only when the knowledge-graph
+opening conditions and current chain data support them (long-term thesis, at
+least one year, preferably deep ITM/high Delta, acceptable Theta/cost, IV, and
+liquidity). LEAPS never replaces CSP and is not forced when its conditions fail.
+The
+default local vault path is the Obsidian vault supplied
+with this setup; override it with `TRADINGAGENTS_OPTIONS_KNOWLEDGE_PATH`. The
+retriever ranks relevant Markdown notes (ticker, Greeks, and strategy notes)
+and injects only a bounded excerpt. Applications with another options
+knowledge graph can inject educational definitions and risk rules through
+`TRADINGAGENTS_OPTIONS_KNOWLEDGE_CONTEXT` or the
+`options_knowledge_context` argument to `propagate`; this context is kept
+separate from market quotes.
+
 ### Implementation Details
 
 We built TradingAgents with LangGraph to ensure flexibility and modularity. The framework supports multiple LLM providers: OpenAI, Google, Anthropic, xAI, DeepSeek, Qwen (Alibaba DashScope, international and China endpoints), GLM (Zhipu), MiniMax (global + China), OpenRouter, Ollama for local models, and Azure OpenAI for enterprise.

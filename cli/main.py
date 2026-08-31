@@ -36,6 +36,7 @@ from cli.utils import (
     prompt_openai_compatible_url,
     resolve_backend_url,
     select_analysts,
+    select_options_trader,
     select_deep_thinking_agent,
     select_llm_provider,
     select_research_depth,
@@ -77,7 +78,7 @@ class MessageBuffer:
     # Fixed teams that always run (not user-selectable)
     FIXED_AGENTS = {
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
+        "Trading Team": ["Stock Trader"],
         "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
         "Portfolio Management": ["Portfolio Manager"],
     }
@@ -88,6 +89,7 @@ class MessageBuffer:
         "social": "Sentiment Analyst",
         "news": "News Analyst",
         "fundamentals": "Fundamentals Analyst",
+        "options": "Options Analyst",
     }
 
     # Report section mapping: section -> (analyst_key for filtering, finalizing_agent)
@@ -98,8 +100,10 @@ class MessageBuffer:
         "sentiment_report": ("social", "Sentiment Analyst"),
         "news_report": ("news", "News Analyst"),
         "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
+        "options_report": ("options", "Options Analyst"),
+        "options_trader_plan": (None, "Options Trader"),
         "investment_plan": (None, "Research Manager"),
-        "trader_investment_plan": (None, "Trader"),
+        "trader_investment_plan": (None, "Stock Trader"),
         "final_trade_decision": (None, "Portfolio Manager"),
     }
 
@@ -112,15 +116,17 @@ class MessageBuffer:
         self.current_agent = None
         self.report_sections = {}
         self.selected_analysts = []
+        self.options_trader_enabled = False
         self._processed_message_ids = set()
 
-    def init_for_analysis(self, selected_analysts):
+    def init_for_analysis(self, selected_analysts, options_trader_enabled=False):
         """Initialize agent status and report sections based on selected analysts.
 
         Args:
             selected_analysts: List of analyst type strings (e.g., ["market", "news"])
         """
         self.selected_analysts = [a.lower() for a in selected_analysts]
+        self.options_trader_enabled = options_trader_enabled
 
         # Build agent_status dynamically
         self.agent_status = {}
@@ -134,11 +140,15 @@ class MessageBuffer:
         for team_agents in self.FIXED_AGENTS.values():
             for agent in team_agents:
                 self.agent_status[agent] = "pending"
+        if options_trader_enabled:
+            self.agent_status["Options Trader"] = "pending"
 
         # Build report_sections dynamically
         self.report_sections = {}
         for section, (analyst_key, _) in self.REPORT_SECTIONS.items():
-            if analyst_key is None or analyst_key in self.selected_analysts:
+            if analyst_key is None or analyst_key in self.selected_analysts or (
+                analyst_key == "options" and options_trader_enabled
+            ):
                 self.report_sections[section] = None
 
         # Reset other state
@@ -206,7 +216,9 @@ class MessageBuffer:
                 "sentiment_report": "Social Sentiment",
                 "news_report": "News Analysis",
                 "fundamentals_report": "Fundamentals Analysis",
+                "options_report": "Options Analyst",
                 "investment_plan": "Research Team Decision",
+                "options_trader_plan": "Options Trader",
                 "trader_investment_plan": "Trading Team Plan",
                 "final_trade_decision": "Portfolio Management Decision",
             }
@@ -221,7 +233,13 @@ class MessageBuffer:
         report_parts = []
 
         # Analyst Team Reports - use .get() to handle missing sections
-        analyst_sections = ["market_report", "sentiment_report", "news_report", "fundamentals_report"]
+        analyst_sections = [
+            "market_report",
+            "sentiment_report",
+            "news_report",
+            "fundamentals_report",
+            "options_report",
+        ]
         if any(self.report_sections.get(section) for section in analyst_sections):
             report_parts.append("## Analyst Team Reports")
             if self.report_sections.get("market_report"):
@@ -240,6 +258,10 @@ class MessageBuffer:
                 report_parts.append(
                     f"### Fundamentals Analysis\n{self.report_sections['fundamentals_report']}"
                 )
+            if self.report_sections.get("options_report"):
+                report_parts.append(
+                    f"### Options Analysis\n{self.report_sections['options_report']}"
+                )
 
         # Research Team Reports
         if self.report_sections.get("investment_plan"):
@@ -247,8 +269,12 @@ class MessageBuffer:
             report_parts.append(f"{self.report_sections['investment_plan']}")
 
         # Trading Team Reports
-        if self.report_sections.get("trader_investment_plan"):
+        if self.report_sections.get("options_trader_plan"):
             report_parts.append("## Trading Team Plan")
+            report_parts.append(f"### Options Trader\n{self.report_sections['options_trader_plan']}")
+        if self.report_sections.get("trader_investment_plan"):
+            if not self.report_sections.get("options_trader_plan"):
+                report_parts.append("## Trading Team Plan")
             report_parts.append(f"{self.report_sections['trader_investment_plan']}")
 
         # Portfolio Management Decision
@@ -319,9 +345,10 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
             "Sentiment Analyst",
             "News Analyst",
             "Fundamentals Analyst",
+            "Options Analyst",
         ],
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
-        "Trading Team": ["Trader"],
+        "Trading Team": ["Stock Trader", "Options Trader"],
         "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
         "Portfolio Management": ["Portfolio Manager"],
     }
@@ -598,6 +625,10 @@ def get_user_selections():
     console.print(
         f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
     )
+    options_trader_enabled = select_options_trader()
+    console.print(
+        f"[green]Options Trader:[/green] {'enabled' if options_trader_enabled else 'disabled'}"
+    )
 
     # Step 5: Research depth (skipped when both round counts are set via env).
     # Research depth maps to the debate + risk round counts; when both are
@@ -729,6 +760,7 @@ def get_user_selections():
         "asset_type": asset_type.value,
         "analysis_date": analysis_date,
         "analysts": selected_analysts,
+        "options_trader_enabled": options_trader_enabled,
         "research_depth": selected_research_depth,
         "llm_provider": selected_llm_provider.lower(),
         "backend_url": backend_url,
@@ -780,6 +812,8 @@ def display_complete_report(final_state):
         analysts.append(("News Analyst", final_state["news_report"]))
     if final_state.get("fundamentals_report"):
         analysts.append(("Fundamentals Analyst", final_state["fundamentals_report"]))
+    if final_state.get("options_report"):
+        analysts.append(("Options Analyst", final_state["options_report"]))
     if analysts:
         console.print(Panel("[bold]I. Analyst Team Reports[/bold]", border_style="cyan"))
         for title, content in analysts:
@@ -801,9 +835,12 @@ def display_complete_report(final_state):
                 console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
 
     # III. Trading Team
-    if final_state.get("trader_investment_plan"):
+    if final_state.get("trader_investment_plan") or final_state.get("options_trader_plan"):
         console.print(Panel("[bold]III. Trading Team Plan[/bold]", border_style="yellow"))
-        console.print(Panel(Markdown(final_state["trader_investment_plan"]), title="Trader", border_style="blue", padding=(1, 2)))
+        if final_state.get("options_trader_plan"):
+            console.print(Panel(Markdown(final_state["options_trader_plan"]), title="Options Trader", border_style="blue", padding=(1, 2)))
+        if final_state.get("trader_investment_plan"):
+            console.print(Panel(Markdown(final_state["trader_investment_plan"]), title="Stock Trader", border_style="blue", padding=(1, 2)))
 
     # IV. Risk Management Team
     if final_state.get("risk_debate_state"):
@@ -834,18 +871,20 @@ def update_research_team_status(status):
 
 
 # Ordered list of analysts for status transitions
-ANALYST_ORDER = ["market", "social", "news", "fundamentals"]
+ANALYST_ORDER = ["market", "social", "news", "fundamentals", "options"]
 ANALYST_AGENT_NAMES = {
     "market": "Market Analyst",
     "social": "Sentiment Analyst",
     "news": "News Analyst",
     "fundamentals": "Fundamentals Analyst",
+    "options": "Options Analyst",
 }
 ANALYST_REPORT_MAP = {
     "market": "market_report",
     "social": "sentiment_report",
     "news": "news_report",
     "fundamentals": "fundamentals_report",
+    "options": "options_report",
 }
 
 
@@ -994,6 +1033,7 @@ def _build_run_config(selections: dict, checkpoint: bool | None) -> dict:
     config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
     config["anthropic_effort"] = selections.get("anthropic_effort")
     config["output_language"] = selections.get("output_language", "English")
+    config["options_trader_enabled"] = selections.get("options_trader_enabled", False)
     # --checkpoint/--no-checkpoint overrides only when explicitly given; omitting
     # the flag preserves TRADINGAGENTS_CHECKPOINT_ENABLED / the default (#976).
     if checkpoint is not None:
@@ -1013,6 +1053,10 @@ def run_analysis(checkpoint: bool | None = None):
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
     selected_set = {analyst.value for analyst in selections["analysts"]}
     selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
+    # The default Trading Team options workflow also needs the upstream Greeks
+    # report, so include Options Analyst automatically when enabled.
+    if selections.get("options_trader_enabled") and "options" not in selected_analyst_keys:
+        selected_analyst_keys.append("options")
     analyst_execution_plan = build_analyst_execution_plan(selected_analyst_keys)
     analyst_wall_time_tracker = AnalystWallTimeTracker(analyst_execution_plan)
 
@@ -1025,7 +1069,10 @@ def run_analysis(checkpoint: bool | None = None):
     )
 
     # Initialize message buffer with selected analysts
-    message_buffer.init_for_analysis(selected_analyst_keys)
+    message_buffer.init_for_analysis(
+        selected_analyst_keys,
+        options_trader_enabled=selections.get("options_trader_enabled", False),
+    )
 
     # Track start time for elapsed display
     start_time = time.time()
@@ -1179,15 +1226,24 @@ def run_analysis(checkpoint: bool | None = None):
                         "investment_plan", f"### Research Manager Decision\n{judge}"
                     )
                     update_research_team_status("completed")
-                    message_buffer.update_agent_status("Trader", "in_progress")
+                    message_buffer.update_agent_status(
+                        "Options Trader" if message_buffer.options_trader_enabled else "Stock Trader",
+                        "in_progress",
+                    )
 
             # Trading Team
+            if chunk.get("options_report"):
+                message_buffer.update_report_section("options_report", chunk["options_report"])
+            if chunk.get("options_trader_plan"):
+                message_buffer.update_report_section("options_trader_plan", chunk["options_trader_plan"])
+                message_buffer.update_agent_status("Options Trader", "completed")
+                message_buffer.update_agent_status("Stock Trader", "in_progress")
             if chunk.get("trader_investment_plan"):
                 message_buffer.update_report_section(
                     "trader_investment_plan", chunk["trader_investment_plan"]
                 )
-                if message_buffer.agent_status.get("Trader") != "completed":
-                    message_buffer.update_agent_status("Trader", "completed")
+                if message_buffer.agent_status.get("Stock Trader") != "completed":
+                    message_buffer.update_agent_status("Stock Trader", "completed")
                     message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
 
             # Risk Management Team - Handle Risk Debate State

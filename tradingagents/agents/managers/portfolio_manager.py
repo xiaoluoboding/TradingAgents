@@ -66,7 +66,7 @@ def create_portfolio_manager(llm):
 
 ---
 
-If options data is available, fill the Options Insights field with a concise conclusion on the cash-secured-put seller strategy. State whether the approximately 45-DTE ATM/near-ATM CSP with 21-DTE profit-taking should be the primary strategy. Mention LEAPS Call only if the knowledge-graph conditions and current data support it: genuine long-term thesis, >=1 year to expiration, preferably deep ITM with Delta near/above 0.85, manageable Theta/cost, and adequate liquidity. LEAPS is optional and must not be framed as a required replacement for CSP. Emphasize seller-favorable conditions for CSP and do not merely repeat the stock rating. Be decisive and ground every conclusion in specific evidence from the analysts.
+If options data is available, fill the Options Insights field with a concise conclusion on the cash-secured-put seller strategy and the separate OTM no-shares income strategy. State whether the approximately 45-DTE ATM/near-ATM CSP with 21-DTE profit-taking should be primary. If stable premium without shares is the objective, state whether a defined-risk OTM put credit spread is suitable, whether Delta 0.10-0.20 is stable, or whether the short leg should move to a lower Delta. Mention LEAPS Call only if the knowledge-graph conditions and current data support it: genuine long-term thesis, >=1 year to expiration, preferably deep ITM with Delta near/above 0.85, manageable Theta/cost, and adequate liquidity. LEAPS is optional and must not be framed as a required replacement for CSP. Emphasize seller-favorable conditions for CSP and no-shares risk controls for the spread. Be decisive and ground every conclusion in specific evidence from the analysts.
 
 {NO_EXTERNAL_TOOLS}{get_language_instruction()}"""
 

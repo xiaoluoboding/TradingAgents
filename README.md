@@ -148,6 +148,61 @@ export OPENROUTER_API_KEY=...      # OpenRouter
 export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
 ```
 
+For ChatGPT Plus/Pro subscription usage, select `ChatGPT Plus/Pro (Codex
+subscription)` as the provider. This launches the locally installed Codex CLI
+app-server, which owns ChatGPT OAuth and subscription entitlement; no
+`OPENAI_API_KEY` is used. Complete `codex` login before running TradingAgents.
+
+#### ChatGPT Plus/Pro login
+
+Install the Codex CLI and verify that the native executable starts:
+
+```bash
+npm install -g @openai/codex@latest
+which codex
+codex --help
+```
+
+Start the normal browser-based login flow:
+
+```bash
+codex login
+```
+
+The command opens an OpenAI authorization page in your default browser. Sign
+in with the ChatGPT account that has the Plus or Pro subscription and approve
+access. Codex stores and refreshes the session credentials; TradingAgents does
+not read or copy those credentials.
+
+For a remote or headless machine, use device-code login instead:
+
+```bash
+codex login --device-auth
+```
+
+Check the login status before running an analysis:
+
+```bash
+codex login status
+```
+
+Then configure TradingAgents to use the subscription provider:
+
+```bash
+export TRADINGAGENTS_LLM_PROVIDER=codex_subscription
+export TRADINGAGENTS_DEEP_THINK_LLM=gpt-5.3-codex
+export TRADINGAGENTS_QUICK_THINK_LLM=gpt-5.3-codex
+tradingagents
+```
+
+If `codex` reports `spawn .../vendor/.../codex ENOENT`, the CLI wrapper is
+installed but its platform-specific native binary is missing. Reinstall the
+package using the same package manager whose executable appears in `which
+codex` (for example, `npm uninstall -g @openai/codex` followed by the install
+command above). If browser login ends with `Login cancelled`, run
+`codex login` again and keep the authorization page open until the callback
+finishes.
+
 For Azure OpenAI, copy `.env.enterprise.example` to `.env.enterprise` and fill in your credentials.
 
 For AWS Bedrock, install the extra with `pip install ".[bedrock]"`, set `llm_provider: "bedrock"`, configure AWS credentials (environment variables, `~/.aws/credentials`, or an IAM role) and `AWS_DEFAULT_REGION`, and use a Bedrock model ID, e.g. `us.anthropic.claude-opus-4-8-v1:0`.
@@ -250,7 +305,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
 config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"        # e.g. openai, google, anthropic, deepseek, groq, ollama; openai_compatible covers any OpenAI-compatible endpoint (vLLM, LM Studio, llama.cpp, ...)
+config["llm_provider"] = "openai"        # e.g. openai, codex_subscription, google, anthropic, deepseek, groq, ollama
 config["deep_think_llm"] = "gpt-5.6"      # Model for complex reasoning
 config["quick_think_llm"] = "gpt-5.6-luna" # Model for quick tasks
 config["max_debate_rounds"] = 2

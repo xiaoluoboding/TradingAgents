@@ -31,6 +31,23 @@ def create_trader(llm):
             " This is an options workflow. Treat the Options Trader report as primary for contract selection, Greeks, IV, liquidity, expiration, and defined-risk construction; do not reduce an option recommendation to the underlying stock direction."
             if options_report else ""
         )
+        # The research plan digests the debate but loses exact price structure;
+        # give the Trader the technical market report so entry/stop levels are
+        # grounded in real ATR / support-resistance / current price (#1167). The
+        # report is empty when the user did not select the market analyst, so
+        # only offer it (and the grounding instruction) when it has content.
+        market_report = (state["market_report"] or "").strip()
+
+        if market_report:
+            grounding = (
+                "Ground concrete price levels (entry, stop-loss, position sizing) in the technical "
+                "market report's price structure -- current price, support/resistance, ATR, and "
+                "volatility -- and use the research plan for direction and strategy. "
+            )
+            report_section = f"Technical Market Report:\n{market_report}\n\n"
+        else:
+            grounding = ""
+            report_section = ""
 
         messages = [
             {
@@ -38,7 +55,7 @@ def create_trader(llm):
                 "content": (
                     "You are a trading agent analyzing market data to make investment decisions. "
                     "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
-                    "Anchor your reasoning in the analysts' reports and the research plan. "
+                    + grounding
                     + NO_EXTERNAL_TOOLS
                     + options_instruction
                     + get_language_instruction()
@@ -47,14 +64,13 @@ def create_trader(llm):
             {
                 "role": "user",
                 "content": (
-                    f"Based on a comprehensive analysis by a team of analysts, here is an investment "
-                    f"plan tailored for {company_name}. {instrument_context} This plan incorporates "
-                    f"insights from current technical market trends, macroeconomic indicators, and "
-                    f"social media sentiment. Use this plan as a foundation for evaluating your next "
-                    f"trading decision.\n\nProposed Investment Plan: {investment_plan}\n\n"
-                    f"Leverage these insights to make an informed and strategic decision."
-                    f"\n\nOptions Trader Report (if present): {options_report}"
-                    f"\n\nOptions strategy recommendation (if present): {options_trader_plan}"
+                    f"Here is the research team's investment plan for {company_name}. "
+                    f"{instrument_context}\n\n"
+                    f"Proposed Investment Plan:\n{investment_plan}\n\n"
+                    f"{report_section}"
+                    f"Options Analyst report (if present):\n{options_report}\n\n"
+                    f"Options Trader recommendation (if present):\n{options_trader_plan}\n\n"
+                    f"Make an informed, strategic trading decision."
                 ),
             },
         ]

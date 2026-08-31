@@ -79,6 +79,7 @@ _MINIMAX_MODELS: dict[str, list[ModelOption]] = {
 
 
 MODEL_OPTIONS: ProviderModeOptions = {
+    "codex_subscription": _CUSTOM_ONLY,
     "openai": {
         "quick": [
             ("GPT-5.6 Luna - Fast, cost-efficient frontier", "gpt-5.6-luna"),

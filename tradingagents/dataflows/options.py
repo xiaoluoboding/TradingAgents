@@ -15,7 +15,13 @@ OPTION_COLUMNS = [
 ]
 
 
-def format_option_chain(symbol: str, expiration: str, frame: pd.DataFrame, retrieved_on: str) -> str:
+def format_option_chain(
+    symbol: str,
+    expiration: str,
+    frame: pd.DataFrame,
+    retrieved_on: str,
+    underlying_price: float | None = None,
+) -> str:
     """Return a compact, model-readable option chain with Greeks when supplied."""
     if frame.empty:
         return f"# Option chain unavailable for {symbol} ({expiration}): no contracts returned."
@@ -24,10 +30,16 @@ def format_option_chain(symbol: str, expiration: str, frame: pd.DataFrame, retri
     for column in columns:
         if column not in {"contractSymbol"}:
             data[column] = pd.to_numeric(data[column], errors="coerce").round(4)
+    spot_line = (
+        f"# Underlying price: {underlying_price:.4f}\n"
+        if underlying_price is not None
+        else "# Underlying price: unavailable\n"
+    )
     return (
         f"# Option chain for {symbol}, expiration {expiration}\n"
         f"# Retrieved on: {retrieved_on}\n"
-        f"# Contracts: {len(data)}\n"
+        + spot_line
+        + f"# Contracts: {len(data)}\n"
         "# Greeks are exchange/vendor values when present; otherwise Black-Scholes estimates using the retrieved underlying price, IV, and 4% risk-free rate.\n\n"
         "# Fields: contractSymbol, optionType, strike, lastPrice, bid, ask, volume, openInterest, impliedVolatility, Delta, Gamma, Theta, Vega, Rho\n\n"
         + data.to_csv(index=False)
@@ -68,10 +80,17 @@ def get_option_chain_online(symbol: str, expiration: str | None = None, max_cont
     calls["optionType"] = "call"
     puts["optionType"] = "put"
     data = pd.concat([calls, puts], ignore_index=True)
-    data = _fill_missing_greeks(data, ticker, selected)
+    spot = _latest_spot(ticker)
+    data = _fill_missing_greeks(data, ticker, selected, spot=spot)
     if "openInterest" in data.columns:
         data = data.sort_values("openInterest", ascending=False, na_position="last")
-    return format_option_chain(canonical, selected, data.head(max(1, int(max_contracts))), datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    return format_option_chain(
+        canonical,
+        selected,
+        data.head(max(1, int(max_contracts))),
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        underlying_price=spot,
+    )
 
 
 def _normal_pdf(value: float) -> float:
@@ -82,15 +101,27 @@ def _normal_cdf(value: float) -> float:
     return 0.5 * (1 + erf(value / sqrt(2)))
 
 
-def _fill_missing_greeks(data: pd.DataFrame, ticker, expiration: str) -> pd.DataFrame:
+def _latest_spot(ticker) -> float | None:
+    try:
+        history = ticker.history(period="1d")
+        return float(history["Close"].dropna().iloc[-1])
+    except Exception:
+        return None
+
+
+def _fill_missing_greeks(
+    data: pd.DataFrame,
+    ticker,
+    expiration: str,
+    spot: float | None = None,
+) -> pd.DataFrame:
     """Estimate missing Greeks without replacing vendor-provided values."""
     required = {"strike", "impliedVolatility", "optionType"}
     if not required.issubset(data.columns):
         return data
-    try:
-        history = ticker.history(period="1d")
-        spot = float(history["Close"].dropna().iloc[-1])
-    except Exception:
+    if spot is None:
+        spot = _latest_spot(ticker)
+    if spot is None:
         return data
     expiry_days = max((datetime.strptime(expiration, "%Y-%m-%d") - datetime.now()).total_seconds() / 86400, 1 / 365)
     time = expiry_days / 365

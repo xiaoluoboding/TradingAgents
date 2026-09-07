@@ -36,7 +36,6 @@ from cli.utils import (
     prompt_openai_compatible_url,
     resolve_backend_url,
     select_analysts,
-    select_options_trader,
     select_deep_thinking_agent,
     select_llm_provider,
     select_research_depth,
@@ -625,10 +624,11 @@ def get_user_selections():
     console.print(
         f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
     )
-    options_trader_enabled = select_options_trader()
-    console.print(
-        f"[green]Options Trader:[/green] {'enabled' if options_trader_enabled else 'disabled'}"
-    )
+    # Options Trader is part of the default stock workflow. Keep this explicit
+    # in selections so downstream graph/status code has one source of truth,
+    # without interrupting the CLI with a confirmation prompt.
+    options_trader_enabled = True
+    console.print("[green]Options Trader:[/green] enabled by default")
 
     # Step 5: Research depth (skipped when both round counts are set via env).
     # Research depth maps to the debate + risk round counts; when both are

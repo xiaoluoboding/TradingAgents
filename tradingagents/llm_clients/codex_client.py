@@ -38,6 +38,23 @@ def _tool_schema(tool: Any) -> dict[str, Any]:
     }
 
 
+def _strict_json_schema(value: Any) -> Any:
+    """Normalize Pydantic JSON Schema for Codex Structured Outputs."""
+    if isinstance(value, list):
+        return [_strict_json_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    normalized = {key: _strict_json_schema(item) for key, item in value.items()}
+    if "$ref" in normalized:
+        # Codex Structured Outputs rejects annotations next to a reference.
+        return {"$ref": normalized["$ref"]}
+    if normalized.get("type") == "object" or "properties" in normalized:
+        properties = normalized.get("properties", {})
+        normalized["additionalProperties"] = False
+        normalized["required"] = list(properties)
+    return normalized
+
+
 class CodexChatModel(BaseChatModel):
     """Synchronous stdio JSON-RPC bridge to Codex app-server."""
 
@@ -58,7 +75,9 @@ class CodexChatModel(BaseChatModel):
             # Codex app-server owns tool choice; silently ignoring a LangChain
             # tool_choice avoids sending an OpenAI-specific payload to Codex.
             kwargs.pop("tool_choice", None)
-        clone = self.model_copy(deep=True)
+        # Keep callback handlers shared with the parent model so bound and
+        # structured-output calls remain visible to the run-level auditor.
+        clone = self.model_copy(deep=False)
         clone.tools = tuple(tools)
         return clone
 
@@ -70,8 +89,8 @@ class CodexChatModel(BaseChatModel):
             output_schema = schema.schema()
         else:
             output_schema = schema
-        clone = self.model_copy(deep=True)
-        clone._output_schema = output_schema
+        clone = self.model_copy(deep=False)
+        clone._output_schema = _strict_json_schema(output_schema)
 
         def parse(result: AIMessage) -> Any:
             value = result.content
@@ -162,7 +181,8 @@ class CodexChatModel(BaseChatModel):
                 **({"outputSchema": self._output_schema} if self._output_schema else {}),
             })["turn"]["id"]
 
-            answer = ""
+            answers_by_item: dict[str, str] = {}
+            answer_order: list[str] = []
             while True:
                 event = receive()
                 method = event.get("method")
@@ -170,13 +190,33 @@ class CodexChatModel(BaseChatModel):
                 if method == "item/tool/call":
                     self._handle_tool_call(send, event)
                 elif method == "item/agentMessage/delta":
-                    answer += params.get("delta", "")
+                    item_id = str(params.get("itemId", "agent-message"))
+                    if item_id not in answers_by_item:
+                        answer_order.append(item_id)
+                    answers_by_item[item_id] = answers_by_item.get(item_id, "") + params.get("delta", "")
                 elif method == "item/completed":
                     item = params.get("item", {})
-                    if item.get("type") == "agentMessage" and not answer:
-                        answer = item.get("text", item.get("message", ""))
+                    if item.get("type") == "agentMessage":
+                        item_id = str(item.get("id", "agent-message"))
+                        if item_id not in answers_by_item:
+                            answer_order.append(item_id)
+                        completed_text = item.get("text", item.get("message", ""))
+                        if completed_text:
+                            answers_by_item[item_id] = completed_text
+                elif method == "error" and params.get("turnId") in (None, turn):
+                    detail = params.get("error", {})
+                    raise RuntimeError(
+                        "Codex turn failed: " + str(detail.get("message") or detail)
+                    )
                 elif method == "turn/completed" and params.get("turn", {}).get("id") == turn:
+                    completed = params.get("turn", {})
+                    if completed.get("status") != "completed":
+                        detail = completed.get("error") or completed.get("status")
+                        raise RuntimeError(f"Codex turn failed: {detail}")
                     break
+            answer = answers_by_item[answer_order[-1]] if answer_order else ""
+            if not answer.strip():
+                raise RuntimeError("Codex turn completed without an assistant message")
             return ChatResult(generations=[ChatGeneration(message=AIMessage(content=answer))])
         finally:
             proc.terminate()
@@ -220,6 +260,7 @@ class CodexSubscriptionClient(BaseLLMClient):
             cwd=self.kwargs.get("cwd"),
             effort=self.kwargs.get("reasoning_effort"),
             timeout=float(self.kwargs.get("timeout", 600)),
+            callbacks=self.kwargs.get("callbacks"),
         )
 
     def validate_model(self) -> bool:

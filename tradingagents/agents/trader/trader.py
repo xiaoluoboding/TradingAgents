@@ -28,7 +28,7 @@ def create_trader(llm):
         options_report = state.get("options_report", "")
         options_trader_plan = state.get("options_trader_plan", "")
         options_instruction = (
-            " This is an options workflow. Treat the Options Trader report as primary for contract selection, Greeks, IV, liquidity, expiration, and defined-risk construction; do not reduce an option recommendation to the underlying stock direction."
+            " This is an options workflow. Treat the Options Trader report as primary for contract selection, Greeks, IV, liquidity, expiration, and risk management; do not reduce an option recommendation to the underlying stock direction."
             if options_report else ""
         )
         # The research plan digests the debate but loses exact price structure;
@@ -53,8 +53,8 @@ def create_trader(llm):
             {
                 "role": "system",
                 "content": (
-                    "You are a trading agent analyzing market data to make investment decisions. "
-                    "Based on your analysis, provide a specific recommendation to buy, sell, or hold. "
+                    "You are the Stock Trader. Analyze the stock using market price action, technical indicators, fundamentals, news, sentiment, macro conditions, and the overall research plan to make a buy, sell, or hold decision. "
+                    "The Options Analyst and Options Trader reports are supplemental and must not impose their OPEN/WAIT rules on the stock decision. Do not let an options contract recommendation replace holistic stock and macro analysis. "
                     + grounding
                     + NO_EXTERNAL_TOOLS
                     + options_instruction
@@ -68,8 +68,9 @@ def create_trader(llm):
                     f"{instrument_context}\n\n"
                     f"Proposed Investment Plan:\n{investment_plan}\n\n"
                     f"{report_section}"
-                    f"Options Analyst report (if present):\n{options_report}\n\n"
-                    f"Options Trader recommendation (if present):\n{options_trader_plan}\n\n"
+                    f"Options reports (reference only; do not use their opening rules for the stock decision):\n"
+                    f"Options Analyst report:\n{options_report}\n\n"
+                    f"Options Trader recommendation:\n{options_trader_plan}\n\n"
                     f"Make an informed, strategic trading decision."
                 ),
             },

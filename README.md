@@ -253,8 +253,8 @@ An interface will appear showing results as they load, letting you track the age
 
 ### Options Trader mode
 
-Enable `Options Trader` in the Trading Team prompt. In the CLI this also
-enables the upstream `Options Analyst` automatically. In the Python API, set
+`Options Trader` is enabled by default in the CLI, with no confirmation prompt,
+and the upstream `Options Analyst` is added automatically. In the Python API, set
 `options_trader_enabled=True` and include `"options"` in `selected_analysts`.
 The mode retrieves
 the current Yahoo option chain and grounds its report in contract symbol,

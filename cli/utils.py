@@ -165,16 +165,6 @@ def select_analysts(asset_type: AssetType = AssetType.STOCK) -> list[AnalystType
     return choices
 
 
-def select_options_trader() -> bool:
-    """Ask separately whether the Trading Team should construct an option strategy."""
-    choice = questionary.confirm(
-        "Enable Options Trader in the Trading Team? [Y/n]",
-        default=True,
-        style=questionary.Style([("text", "fg:green"), ("highlighted", "noinherit")]),
-    ).ask()
-    return bool(choice)
-
-
 def select_research_depth() -> int:
     """Select research depth using an interactive selection."""
 
